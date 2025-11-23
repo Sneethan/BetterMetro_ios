@@ -78,28 +78,23 @@ struct FirstLaunchView: View {
 
                 // Data privacy scaffold
                 VStack(alignment: .leading, spacing: Design.Spacing.s) {
-                    HStack(spacing: 12) {
                         Image(systemName: "person.2.fill")
-                            .foregroundColor(Color(red: 0.56, green: 0.45, blue: 1.0))
+                                .foregroundColor(Design.primary)
                             .font(.title2)
                             .frame(width: 40, height: 40)
-                            .background(Color(red: 0.9, green: 0.88, blue: 1.0).opacity(0.35))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                        Text("Your credentials are encrypted and used only to talk to MetroTas. We don’t store your password in the cloud.")
+                        Text("We respect your privacy. Your credentials are securely stored on your device and never shared. We only use them to fetch your Greencard data, and are not affiliated with Metro Tasmania.")
                             .font(.footnote)
                             .foregroundColor(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
-                    }
-                    
-                    if let privacyURL = URL(string: "https://www.metrotas.com.au/privacy-policy") {
-                        Link("See how your data is managed…", destination: privacyURL)
-                            .font(.footnote.weight(.semibold))
-                            .foregroundColor(Color(red: 0.56, green: 0.45, blue: 1.0))
-                    }
+                    Text("See how your data is managed…")
+                        .font(.footnote.weight(.semibold))
+                                .foregroundColor(Design.primary)
+
                 }
                 .padding()
                 .background(Color(uiColor: .secondarySystemBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 16))
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Design.Spacing.l)
                 
                 // Action Button

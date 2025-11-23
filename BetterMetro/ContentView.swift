@@ -127,12 +127,12 @@ struct GreencardView: View {
                         systemImage: "tram.card.fill",
                         description: Text("Pull down to refresh your account information")
                     )
+                    .refreshable {
+                        await viewModel.refresh()
+                        let generator = UIImpactFeedbackGenerator(style: .light)
+                        generator.impactOccurred()
+                    }
                 }
-            }
-            .refreshable {
-                await viewModel.refresh()
-                let generator = UIImpactFeedbackGenerator(style: .light)
-                generator.impactOccurred()
             }
             .navigationTitle("Greencard")
         }
