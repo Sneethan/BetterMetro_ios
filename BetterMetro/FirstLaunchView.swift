@@ -49,11 +49,14 @@ struct FirstLaunchView: View {
                             .font(.caption)
                             .fontWeight(.medium)
                         TextField("e.g. 1807022585-1", text: $cardNumber)
-                            .textFieldStyle(.roundedBorder)
                             .textContentType(.username)
                             .autocapitalization(.none)
                             .autocorrectionDisabled()
-                            .padding(.vertical, 4)
+                            .padding(.horizontal, 14)
+                            .frame(height: 52)
+                            .background(Color(uiColor: .systemGray5))
+                            .cornerRadius(14)
+                            .contentShape(Rectangle())
                     }
                     
                     VStack(alignment: .leading, spacing: Design.Spacing.s) {
@@ -61,14 +64,43 @@ struct FirstLaunchView: View {
                             .font(.caption)
                             .fontWeight(.medium)
                         SecureField("Enter your password", text: $password)
-                            .textFieldStyle(.roundedBorder)
                             .textContentType(.password)
-                            .padding(.vertical, 4)
+                            .padding(.horizontal, 14)
+                            .frame(height: 52)
+                            .background(Color(uiColor: .systemGray5))
+                            .cornerRadius(14)
+                            .contentShape(Rectangle())
                     }
                 }
                 .padding(.horizontal, Design.Spacing.l)
                 
                 Spacer()
+
+                // Data privacy scaffold
+                VStack(alignment: .leading, spacing: Design.Spacing.s) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "person.2.fill")
+                            .foregroundColor(Color(red: 0.56, green: 0.45, blue: 1.0))
+                            .font(.title2)
+                            .frame(width: 40, height: 40)
+                            .background(Color(red: 0.9, green: 0.88, blue: 1.0).opacity(0.35))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        Text("Your credentials are encrypted and used only to talk to MetroTas. We don’t store your password in the cloud.")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    
+                    if let privacyURL = URL(string: "https://www.metrotas.com.au/privacy-policy") {
+                        Link("See how your data is managed…", destination: privacyURL)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundColor(Color(red: 0.56, green: 0.45, blue: 1.0))
+                    }
+                }
+                .padding()
+                .background(Color(uiColor: .secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .padding(.horizontal, Design.Spacing.l)
                 
                 // Action Button
                 Button(action: authenticateUser) {

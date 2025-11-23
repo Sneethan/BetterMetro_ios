@@ -47,6 +47,17 @@ struct ContentView: View {
         .onAppear {
             setupApp()
         }
+        .onChange(of: storedCredentials.count) { oldValue, newValue in
+            if newValue == 0 {
+                // Credentials removed (logout); reset view data and show onboarding
+                profileViewModel.accountData = nil
+                profileViewModel.historyItems = []
+                showFirstLaunch = true
+            } else if let credentials = currentCredentials {
+                // Credentials added or changed; refresh data
+                profileViewModel.updateCredentials(credentials)
+            }
+        }
         .fullScreenCover(isPresented: $showFirstLaunch) {
             FirstLaunchView(isPresented: $showFirstLaunch)
         }
@@ -90,10 +101,6 @@ struct DashboardView: View {
 // MARK: - Greencard View (Main Profile View)
 struct GreencardView: View {
     @EnvironmentObject private var viewModel: ProfileViewModel
-    @Environment(\.modelContext) private var modelContext
-    @Query private var storedCredentials: [GreencardCredentials]
-    
-    @State private var showingChangeCredentials = false
     
     var body: some View {
         NavigationStack {
@@ -128,32 +135,7 @@ struct GreencardView: View {
                 generator.impactOccurred()
             }
             .navigationTitle("Greencard")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button("Change Credentials") {
-                            showingChangeCredentials = true
-                        }
-                        Button("Clear All Data", role: .destructive) {
-                            clearAllData()
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                }
-            }
-            .sheet(isPresented: $showingChangeCredentials) {
-                ChangeCredentialsView()
-            }
         }
-    }
-    
-    private func clearAllData() {
-        // Clear all stored credentials
-        for credential in storedCredentials {
-            modelContext.delete(credential)
-        }
-        try? modelContext.save()
     }
 }
 
@@ -167,8 +149,8 @@ struct AccountInfoView: View {
     
     var body: some View {
         ScrollView {
-            // Remove all safe-area padding above the header image
-            LazyVStack(spacing: Design.Spacing.l) {
+            // Header image hugs the first card (no gap beneath)
+            LazyVStack(alignment: .leading, spacing: 0) {
                 Image("profileHeader")
                     .renderingMode(.original)
                     .resizable()
@@ -176,13 +158,14 @@ struct AccountInfoView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.top, Design.Spacing.l)
                     .frame(maxWidth: .infinity, alignment: .center)
+
                 CardView {
                     VStack(alignment: .leading, spacing: Design.Spacing.m) {
                         HStack {
                             Image(systemName: "person.circle.fill")
                                 .font(.title)
                                 .foregroundColor(Design.primary)
-                            
+
                             VStack(alignment: .leading) {
                                 Text(accountData.account.fullName)
                                     .font(.headline)
@@ -190,12 +173,12 @@ struct AccountInfoView: View {
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
-                            
+
                             Spacer()
                         }
-                        
+
                         Divider()
-                        
+
                         VStack(alignment: .leading, spacing: Design.Spacing.s) {
                             Text("Card Number")
                                 .font(.caption)
@@ -212,7 +195,21 @@ struct AccountInfoView: View {
                         }
                     }
                 }
-                
+                .overlay {
+                    RoundedRectangle(cornerRadius: Design.radius)
+                        .fill(Color.white.opacity(0.01)) // invisible layer used only to render the shadow
+                        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: -4)
+                        .mask(
+                            LinearGradient(
+                                colors: [.white, .white, .clear], // keep shadow at top, fade it out downwards
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .allowsHitTesting(false)
+                }
+
+
                 // Combined Balance Card
                 CardView {
                     VStack(alignment: .leading, spacing: Design.Spacing.m) {
@@ -232,6 +229,7 @@ struct AccountInfoView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxWidth: .infinity)
+                .padding(.top, Design.Spacing.l)
 
                 Button {
                     showTopUpSheet = true
@@ -247,6 +245,7 @@ struct AccountInfoView: View {
                     .background(.regularMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: Design.radius))
                 }
+                .padding(.top, Design.Spacing.l)
                 .sheet(isPresented: $showTopUpSheet) {
                     let creds = storedCredentials.first
                     AuthenticatedWebView(
@@ -293,9 +292,36 @@ struct AccountInfoView: View {
                         }
                     }
                 }
+                .padding(.top, Design.Spacing.l)
+
+                Button(role: .destructive, action: logout) {
+                    HStack {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .foregroundColor(.red)
+                        Text("Log Out")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(.regularMaterial)
+                    .foregroundColor(.red)
+                    .clipShape(RoundedRectangle(cornerRadius: Design.radius))
+                }
+                .padding(.top, Design.Spacing.l)
+                .padding(.bottom, Design.Spacing.l)
             }
             .padding(.horizontal)
         }
+    }
+
+    private func logout() {
+        // Remove saved credentials and clear in-memory data
+        for credential in storedCredentials {
+            modelContext.delete(credential)
+        }
+        try? modelContext.save()
+        viewModel.accountData = nil
+        viewModel.historyItems = []
     }
 }
 
@@ -391,6 +417,10 @@ struct HistoryView: View {
                 generator.impactOccurred()
             }
             .navigationTitle("History")
+            .safeAreaInset(edge: .top) {
+                // Add breathing room beneath the nav title without affecting scroll behavior
+                Color.clear.frame(height: Design.Spacing.m)
+            }
         }
     }
 }
@@ -743,4 +773,3 @@ struct AuthenticatedWebView: UIViewRepresentable {
     ContentView()
         .modelContainer(for: [GreencardCredentials.self, Item.self], inMemory: true)
 }
-

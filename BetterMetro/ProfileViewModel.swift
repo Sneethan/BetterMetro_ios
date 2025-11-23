@@ -51,21 +51,20 @@ final class ProfileViewModel: ObservableObject {
         
         isLoading = true
         errorMessage = nil
+        defer { isLoading = false }
         
         do {
-            self.accountData = try await service.fetchAccountData(credentials: creds)
-            self.historyItems = try await service.fetchHistory(credentials: creds)
-            
-        } catch is CancellationError {
-            // Ignore silent cancels from pull-to-refresh / navigation
-            errorMessage = nil
-            isLoading = false
-            return
+            let (account, history) = try await fetchAccountAndHistoryDetached(creds)
+            self.accountData = account
+            self.historyItems = history
+
         } catch {
-            errorMessage = error.localizedDescription
+            if isCancellation(error) { return }
+            // Only surface the error if we have no usable data; otherwise keep showing the last-good snapshot.
+            if accountData == nil {
+                errorMessage = error.localizedDescription
+            }
         }
-        
-        isLoading = false
     }
     
     // Refresh data (for pull-to-refresh)
@@ -74,20 +73,49 @@ final class ProfileViewModel: ObservableObject {
         
         isRefreshing = true
         errorMessage = nil
-        
-        do {
-            self.accountData = try await service.fetchAccountData(credentials: creds)
-            self.historyItems = try await service.fetchHistory(credentials: creds)
-            
-        } catch is CancellationError {
-            // Silent ignore — prevents sudden error screen
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
+        defer {
+            isRefreshing = false
+            isLoading = false
         }
         
-        isLoading = false
-        isRefreshing = false
+        do {
+            let (account, history) = try await fetchAccountAndHistoryDetached(creds)
+            self.accountData = account
+            self.historyItems = history
+            
+        } catch {
+            if isCancellation(error) { return }
+            // Preserve existing data if refresh fails
+            if accountData == nil {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    /// Retry once on URLSession-level cancellation (-999) while still respecting cooperative task cancellation.
+    private func fetchWithRetry<T>(_ operation: () async throws -> T) async throws -> T {
+        do {
+            return try await operation()
+        } catch is CancellationError {
+            // If the parent task was actually cancelled, propagate.
+            if Task.isCancelled { throw CancellationError() }
+            // Otherwise treat session cancel (-999) as transient and retry once.
+            return try await operation()
+        }
+    }
+
+    /// Run account + history fetch in detached child tasks so SwiftUI refresh cancellation doesn't nuke the requests.
+    private func fetchAccountAndHistoryDetached(_ creds: GreencardCredentials) async throws -> (AccountData, [HistoryItem]) {
+        let accountTask = Task.detached(priority: .userInitiated) {
+            try await self.fetchWithRetry { try await self.service.fetchAccountData(credentials: creds) }
+        }
+        let historyTask = Task.detached(priority: .userInitiated) {
+            try await self.fetchWithRetry { try await self.service.fetchHistory(credentials: creds) }
+        }
+
+        let account = try await accountTask.value
+        let history = try await historyTask.value
+        return (account, history)
     }
     
     // Legacy method for compatibility
@@ -95,5 +123,14 @@ final class ProfileViewModel: ObservableObject {
         Task {
             await loadData()
         }
+    }
+
+    // Treat URLSession cancelled errors the same way as Task cancellation
+    private func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let urlError = error as? URLError, urlError.code == .cancelled { return true }
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled { return true }
+        return false
     }
 }

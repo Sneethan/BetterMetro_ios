@@ -8,6 +8,7 @@ public enum GreencardAPIError: Error, LocalizedError {
     case serverError(String)
     case decodingError(Error)
     case authenticationFailed
+    case missingConfiguration(String)
     
     public var errorDescription: String? {
         switch self {
@@ -21,6 +22,8 @@ public enum GreencardAPIError: Error, LocalizedError {
             return "Decoding error: \(error.localizedDescription)"
         case .authenticationFailed:
             return "Authentication failed. Please check your credentials."
+        case .missingConfiguration(let key):
+            return "Missing configuration for \(key). Set it before calling this endpoint."
         }
     }
 }
@@ -29,6 +32,10 @@ public enum GreencardAPIError: Error, LocalizedError {
 public class GreencardService: ObservableObject {
     private let baseURLString = "https://greencard.metrotas.com.au/api/v1"
     private let userAgent = "MetroTasMobile/0.0.0 android"
+
+    // Optional Trip Planner endpoints (injected via env vars or runtime configuration)
+    private let tripPlannerRESTBase = ProcessInfo.processInfo.environment["TRIPPLANNER_REST_BASE"].flatMap { URL(string: $0) }
+    private let tripPlannerGraphQLEndpoint = ProcessInfo.processInfo.environment["TRIPPLANNER_GRAPHQL_ENDPOINT"].flatMap { URL(string: $0) }
     
     // Singleton instance
     public static let shared = GreencardService()
@@ -55,7 +62,9 @@ public class GreencardService: ObservableObject {
             throw GreencardAPIError.authenticationFailed
         }
         
-        guard let url = URL(string: "\(baseURLString)/\(slug)") else {
+        // Preserve slug exactly as provided (no forced trailing slash) to avoid 405s
+        let normalizedSlug = slug.hasPrefix("/") ? String(slug.dropFirst()) : slug
+        guard let url = URL(string: "\(baseURLString)/\(normalizedSlug)") else {
             print("❌ Failed to create URL for slug: \(slug)")
             throw GreencardAPIError.invalidURL
         }
@@ -171,6 +180,12 @@ public class GreencardService: ObservableObject {
                 }
             }
         } catch {
+            // Propagate cancellations explicitly so callers can ignore them
+            if let urlError = error as? URLError, urlError.code == .cancelled {
+                print("❌ Network cancelled: \(urlError)")
+                throw CancellationError()
+            }
+
             print("❌ Network error: \(error)")
             if error is GreencardAPIError {
                 throw error
@@ -189,7 +204,7 @@ public class GreencardService: ObservableObject {
         
         do {
             print("🔍 Checking connectivity to server...")
-            let (data, response) = try await session.data(from: url)
+            let (_, response) = try await session.data(from: url)
             if let httpResponse = response as? HTTPURLResponse {
                 let isConnected = httpResponse.statusCode < 500
                 print("🔍 Connectivity check: \(isConnected ? "✅ Connected" : "❌ Server error")")
@@ -231,9 +246,95 @@ public class GreencardService: ObservableObject {
         let request = try makeRequest(slug: "history", credentials: credentials)
         return try await performRequest(request, expecting: [HistoryItem].self)
     }
-    
+
     /// Returns the top-up URL
     public func topUpURL(credentials: GreencardCredentials) -> URL? {
-        URL(string: "\(baseURLString)/pages/top-up")
+        URL(string: "\(baseURLString)/pages/top-up/")
+    }
+
+    /// Update account details (PUT /account/)
+    public func updateAccount(credentials: GreencardCredentials, payload: AccountUpdatePayload) async throws -> AccountData {
+        let body = try JSONEncoder().encode(AccountUpdateRequest(account: payload))
+        let request = try makeRequest(slug: "account", method: "PUT", credentials: credentials, body: body)
+        return try await performRequest(request, expecting: AccountData.self)
+    }
+
+    // MARK: - Trip Planner (optional, scaffolded)
+
+    /// Fetch available networks from the trip-planner REST API.
+    public func fetchNetworks(restBase override: URL? = nil) async throws -> NetworkListResponse {
+        guard let base = override ?? tripPlannerRESTBase else {
+            throw GreencardAPIError.missingConfiguration("TRIPPLANNER_REST_BASE")
+        }
+        var request = URLRequest(url: base.appendingPathComponent("networks"))
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        return try await performTripPlannerREST(request, expecting: NetworkListResponse.self)
+    }
+
+    /// Fetch timetables; optionally filter by network and region.
+    public func fetchTimetables(restBase override: URL? = nil, networkId: String? = nil, regionId: String? = nil) async throws -> TimetableListResponse {
+        guard let base = override ?? tripPlannerRESTBase else {
+            throw GreencardAPIError.missingConfiguration("TRIPPLANNER_REST_BASE")
+        }
+
+        var components = URLComponents(url: base.appendingPathComponent("timetables"), resolvingAgainstBaseURL: false)
+        var queryItems: [URLQueryItem] = []
+        if let networkId { queryItems.append(URLQueryItem(name: "network_id", value: networkId)) }
+        if let regionId { queryItems.append(URLQueryItem(name: "region_id", value: regionId)) }
+        components?.queryItems = queryItems.isEmpty ? nil : queryItems
+
+        guard let url = components?.url else { throw GreencardAPIError.invalidURL }
+
+        var request = URLRequest(url: url)
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        return try await performTripPlannerREST(request, expecting: TimetableListResponse.self)
+    }
+
+    /// Generic GraphQL caller for trip-planner real-time endpoints.
+    public func performTripPlannerGraphQL(
+        operationName: String?,
+        variables: [String: Any],
+        query: String,
+        endpoint override: URL? = nil
+    ) async throws -> Data {
+        guard let endpoint = override ?? tripPlannerGraphQLEndpoint else {
+            throw GreencardAPIError.missingConfiguration("TRIPPLANNER_GRAPHQL_ENDPOINT")
+        }
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+
+        let body: [String: Any?] = [
+            "operationName": operationName,
+            "variables": variables,
+            "query": query
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body.compactMapValues { $0 }, options: [])
+
+        return try await performTripPlannerRaw(request)
+    }
+
+    // MARK: - Private helpers (Trip Planner)
+    private func performTripPlannerREST<T: Codable>(_ request: URLRequest, expecting: T.Type) async throws -> T {
+        print("🚀 Trip planner REST -> \(request.url?.absoluteString ?? "unknown")")
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw GreencardAPIError.serverError("Trip planner REST returned non-2xx")
+        }
+        let decoder = JSONDecoder()
+        return try decoder.decode(T.self, from: data)
+    }
+
+    private func performTripPlannerRaw(_ request: URLRequest) async throws -> Data {
+        print("🚀 Trip planner GraphQL -> \(request.url?.absoluteString ?? "unknown")")
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw GreencardAPIError.serverError("Trip planner GraphQL returned non-2xx")
+        }
+        return data
     }
 }

@@ -107,6 +107,35 @@ public struct Card: Codable {
     }
 }
 
+// MARK: - Account Update
+public struct AccountUpdatePayload: Codable {
+    public let familyName: String
+    public let dateOfBirth: String
+    public let givenName: String
+    public let postalAddress: Address
+    public let phone: String
+    public let defaultTrip: String
+    public let residentialAddress: Address
+    public let email: String
+    public let allowMarketing: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case familyName = "family_name"
+        case dateOfBirth = "date_of_birth"
+        case givenName = "given_name"
+        case postalAddress = "postal_address"
+        case phone
+        case defaultTrip = "default_trip"
+        case residentialAddress = "residential_address"
+        case email
+        case allowMarketing = "allow_marketing"
+    }
+}
+
+public struct AccountUpdateRequest: Codable {
+    public let account: AccountUpdatePayload
+}
+
 // MARK: - History Response Models
 public struct HistoryItem: Codable, Identifiable {
     public let date: String
@@ -147,4 +176,44 @@ public struct HistoryItem: Codable, Identifiable {
     public var isPositive: Bool {
         balanceChange >= 0
     }
+}
+
+// MARK: - Trip Planner REST models
+public struct NetworkListResponse: Codable {
+    public let items: [NetworkItem]
+}
+
+public struct NetworkItem: Codable, Identifiable {
+    public let id: String
+    public let title: String
+    public let type: String
+    public let record: NetworkRecord
+}
+
+public struct NetworkRecord: Codable {
+    public let id: String
+    public let network: NetworkSummary
+    public let region: RegionSummary
+}
+
+public struct NetworkSummary: Codable {
+    public let id: String
+    public let title: String
+}
+
+public struct RegionSummary: Codable {
+    public let id: String
+    public let title: String
+}
+
+public struct TimetableListResponse: Codable {
+    public let items: [TimetableItem]
+}
+
+public struct TimetableItem: Codable, Identifiable {
+    public let id: String
+    public let title: String
+    public let routes: [String]
+    public let network: NetworkSummary
+    public let region: RegionSummary?
 }
