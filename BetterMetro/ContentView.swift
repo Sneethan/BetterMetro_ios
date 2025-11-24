@@ -26,11 +26,6 @@ struct ContentView: View {
     
     var body: some View {
         TabView {
-            DashboardView()
-                .tabItem {
-                    Label("Home", systemImage: "house.fill")
-                }
-            
             GreencardView()
                 .environmentObject(profileViewModel)
                 .tabItem {
@@ -70,30 +65,6 @@ struct ContentView: View {
         } else {
             // Show first launch experience
             showFirstLaunch = true
-        }
-    }
-}
-
-// MARK: - Dashboard View
-struct DashboardView: View {
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: Design.Spacing.l) {
-                Text("Welcome to BetterMetro")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .frame(alignment: .leading)
-                
-                Text("Your enhanced Greencard experience")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .frame(alignment: .leading)
-                
-                Spacer()
-            }
-            .padding()
-            .background(Design.background)
-            .navigationTitle("Dashboard")
         }
     }
 }
@@ -145,172 +116,262 @@ struct AccountInfoView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var storedCredentials: [GreencardCredentials]
     @State private var showTopUpSheet = false
+    @State private var refreshAnchorId = UUID()
     let accountData: AccountData
     
     var body: some View {
-        ScrollView {
-            // Header image hugs the first card (no gap beneath)
-            LazyVStack(alignment: .leading, spacing: 0) {
-                Image("profileHeader")
-                    .renderingMode(.original)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, Design.Spacing.l)
-                    .frame(maxWidth: .infinity, alignment: .center)
+        ScrollViewReader { proxy in
+            ScrollView {
+                Color.clear
+                    .frame(height: 0)
+                    .id(refreshAnchorId)
+                
+                // Header image hugs the first card (no gap beneath)
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    Image("profileHeader")
+                        .renderingMode(.original)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, Design.Spacing.l)
+                        .frame(maxWidth: .infinity, alignment: .center)
 
-                CardView {
-                    VStack(alignment: .leading, spacing: Design.Spacing.m) {
-                        HStack {
-                            Image(systemName: "person.circle.fill")
-                                .font(.title)
-                                .foregroundColor(Design.primary)
+                    CardView {
+                        VStack(alignment: .leading, spacing: Design.Spacing.m) {
+                            HStack {
+                                Image(systemName: "person.circle.fill")
+                                    .font(.title)
+                                    .foregroundColor(Design.primary)
 
-                            VStack(alignment: .leading) {
-                                Text(accountData.account.fullName)
-                                    .font(.headline)
-                                Text(accountData.account.email)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                VStack(alignment: .leading) {
+                                    Text(accountData.account.fullName)
+                                        .font(.headline)
+                                    Text(accountData.account.email)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
                             }
 
-                            Spacer()
-                        }
+                            Divider()
 
-                        Divider()
-
-                        VStack(alignment: .leading, spacing: Design.Spacing.s) {
-                            Text("Card Number")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text(accountData.card.printedCardNumber)
-                                .font(.headline)
-                                .contextMenu {
-                                    Button {
-                                        UIPasteboard.general.string = accountData.card.printedCardNumber
-                                    } label: {
-                                        Label("Copy Card Number", systemImage: "doc.on.doc")
+                            VStack(alignment: .leading, spacing: Design.Spacing.s) {
+                                Text("Card Number")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(accountData.card.printedCardNumber)
+                                    .font(.headline)
+                                    .contextMenu {
+                                        Button {
+                                            UIPasteboard.general.string = accountData.card.printedCardNumber
+                                        } label: {
+                                            Label("Copy Card Number", systemImage: "doc.on.doc")
+                                        }
                                     }
-                                }
+                            }
                         }
                     }
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: Design.radius)
-                        .fill(Color.white.opacity(0.01)) // invisible layer used only to render the shadow
-                        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: -4)
-                        .mask(
-                            LinearGradient(
-                                colors: [.white, .white, .clear], // keep shadow at top, fade it out downwards
-                                startPoint: .top,
-                                endPoint: .bottom
+                    .overlay {
+                        RoundedRectangle(cornerRadius: Design.radius)
+                            .fill(Color.white.opacity(0.01)) // invisible layer used only to render the shadow
+                            .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: -4)
+                            .mask(
+                                LinearGradient(
+                                    colors: [.white, .white, .clear], // keep shadow at top, fade it out downwards
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
                             )
+                            .allowsHitTesting(false)
+                    }
+
+
+                    Button {
+                        showTopUpSheet = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(Design.primary)
+                            Text("Top Up Card")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(.regularMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: Design.radius))
+                    }
+                    .padding(.top, Design.Spacing.m)
+                    .sheet(isPresented: $showTopUpSheet) {
+                        let creds = storedCredentials.first
+                        AuthenticatedWebView(
+                            url: URL(string: "https://greencard.metrotas.com.au/api/v1/pages/top-up/")!,
+                            credentials: creds?.cardNumber ?? accountData.account.username,
+                            password: creds?.password ?? ""
                         )
-                        .allowsHitTesting(false)
-                }
-
-
-                // Combined Balance Card
-                CardView {
-                    VStack(alignment: .leading, spacing: Design.Spacing.m) {
-                        Text("Balance")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
-                        Text(accountData.card.balanceInDollars)
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .foregroundColor(Design.primary)
-
-                        Text("Pending: \(accountData.card.pendingBalanceInDollars)")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                        .onDisappear {
+                            Task { await viewModel.refresh() }
+                        }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.top, Design.Spacing.l)
 
-                Button {
-                    showTopUpSheet = true
-                } label: {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundColor(Design.primary)
-                        Text("Top Up Card")
-                            .fontWeight(.semibold)
+                    // Combined Balance Card
+                    CardView {
+                        VStack(alignment: .leading, spacing: Design.Spacing.m) {
+                            Text("Balance")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+
+                            Text(accountData.card.balanceInDollars)
+                                .font(.largeTitle)
+                                .fontWeight(.bold)
+                                .foregroundColor(Design.primary)
+
+                            Text("Pending: \(accountData.card.pendingBalanceInDollars)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(.regularMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: Design.radius))
-                }
-                .padding(.top, Design.Spacing.l)
-                .sheet(isPresented: $showTopUpSheet) {
-                    let creds = storedCredentials.first
-                    AuthenticatedWebView(
-                        url: URL(string: "https://greencard.metrotas.com.au/api/v1/pages/top-up/")!,
-                        credentials: creds?.cardNumber ?? accountData.account.username,
-                        password: creds?.password ?? ""
-                    )
-                    .onDisappear {
-                        Task { await viewModel.refresh() }
-                    }
-                }
-                
-                // Additional Account Details
-                CardView {
-                    VStack(alignment: .leading, spacing: Design.Spacing.m) {
-                        
-                        VStack(alignment: .leading, spacing: Design.Spacing.s) {
-                            Text("Phone")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text(accountData.account.phone)
-                                .font(.headline)
-                        }
-                        
-                        Divider()
-                        
-                        VStack(alignment: .leading, spacing: Design.Spacing.s) {
-                            Text("Default Trip")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text(accountData.account.defaultTrip)
-                                .font(.headline)
-                        }
-                        
-                        Divider()
-                        
-                        VStack(alignment: .leading, spacing: Design.Spacing.s) {
-                            Text("Residential Address")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text("\(accountData.account.residentialAddress.street), \(accountData.account.residentialAddress.suburb) \(accountData.account.residentialAddress.postcode)")
-                                .font(.headline)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-                .padding(.top, Design.Spacing.l)
+                    .padding(.top, Design.Spacing.m)
 
-                Button(role: .destructive, action: logout) {
-                    HStack {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                            .foregroundColor(.red)
-                        Text("Log Out")
-                            .fontWeight(.semibold)
+                    // Preferences (Auto top-up + Marketing)
+                    CardView {
+                        VStack(alignment: .leading, spacing: Design.Spacing.m) {
+                            Text("Preferences")
+                                .font(.headline)
+                            
+                            HStack {
+                                Label("Auto Reload", systemImage: "arrow.triangle.2.circlepath.circle")
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                if let auto = accountData.card.autoTopUp {
+                                    VStack(alignment: .trailing, spacing: 2) {
+                                        Text("On")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundColor(Design.primary)
+                                        Text("Adds \(auto.topUpAmountInDollars) when below \(auto.minimumAmountInDollars)")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                } else {
+                                    Text("Off")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            
+                            Divider()
+                            
+                            HStack {
+                                Label("Marketing", systemImage: "megaphone.fill")
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Text(accountData.account.allowMarketing ? "Opted in" : "Opted out")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(.regularMaterial)
-                    .foregroundColor(.red)
-                    .clipShape(RoundedRectangle(cornerRadius: Design.radius))
+                    .padding(.top, Design.Spacing.m)
+                    
+                    // Account details (lower priority section)
+                    CardView {
+                        VStack(alignment: .leading, spacing: Design.Spacing.m) {
+                            Text("Account")
+                                .font(.headline)
+                            
+                            VStack(alignment: .leading, spacing: Design.Spacing.s) {
+                                Text("Email")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(accountData.account.email)
+                                    .font(.headline)
+                            }
+                            
+                            Divider()
+                            
+                            VStack(alignment: .leading, spacing: Design.Spacing.s) {
+                                Text("Phone")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(accountData.account.phone)
+                                    .font(.headline)
+                            }
+                            
+                            Divider()
+                            
+                            VStack(alignment: .leading, spacing: Design.Spacing.s) {
+                                Text("Date of Birth")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(accountData.account.dateOfBirth)
+                                    .font(.headline)
+                            }
+                            
+                            Divider()
+                            
+                            VStack(alignment: .leading, spacing: Design.Spacing.s) {
+                                Text("Default Trip")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(accountData.account.defaultTrip)
+                                    .font(.headline)
+                            }
+                            
+                            Divider()
+                            
+                            VStack(alignment: .leading, spacing: Design.Spacing.s) {
+                                Text("Postal Address")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text("\(accountData.account.postalAddress.street), \(accountData.account.postalAddress.suburb) \(accountData.account.postalAddress.postcode)")
+                                    .font(.headline)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            
+                            Divider()
+                            
+                            VStack(alignment: .leading, spacing: Design.Spacing.s) {
+                                Text("Residential Address")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text("\(accountData.account.residentialAddress.street), \(accountData.account.residentialAddress.suburb) \(accountData.account.residentialAddress.postcode)")
+                                    .font(.headline)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+
+                    Button(role: .destructive, action: logout) {
+                        HStack {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .foregroundColor(.red)
+                            Text("Log Out")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(.regularMaterial)
+                        .foregroundColor(.red)
+                        .clipShape(RoundedRectangle(cornerRadius: Design.radius))
+                    }
+                    .padding(.bottom, Design.Spacing.l)
                 }
-                .padding(.top, Design.Spacing.l)
-                .padding(.bottom, Design.Spacing.l)
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
+            .refreshable {
+                await viewModel.refresh()
+                let generator = UIImpactFeedbackGenerator(style: .light)
+                generator.impactOccurred()
+                
+                // Snap back to the top after refresh to avoid sticky offset
+                await MainActor.run {
+                    proxy.scrollTo(refreshAnchorId, anchor: .top)
+                }
+            }
         }
     }
 

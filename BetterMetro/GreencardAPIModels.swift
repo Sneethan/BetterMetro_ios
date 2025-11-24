@@ -84,7 +84,7 @@ public struct Address: Codable {
 public struct Card: Codable {
     public let cardType: String
     public let printedCardNumber: String
-    public let autoTopUp: String?
+    public let autoTopUp: AutoTopUp?
     public let balance: Int
     public let cardNumber: String
     public let pendingBalance: Int
@@ -104,6 +104,24 @@ public struct Card: Codable {
     
     public var pendingBalanceInDollars: String {
         String(format: "$%.2f", Double(pendingBalance) / 100)
+    }
+}
+
+public struct AutoTopUp: Codable {
+    public let minimumAmount: Int
+    public let topUpAmount: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case minimumAmount = "minimum_amount"
+        case topUpAmount = "top_up_amount"
+    }
+    
+    public var minimumAmountInDollars: String {
+        String(format: "$%.2f", Double(minimumAmount) / 100)
+    }
+    
+    public var topUpAmountInDollars: String {
+        String(format: "$%.2f", Double(topUpAmount) / 100)
     }
 }
 
