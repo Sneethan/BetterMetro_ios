@@ -1,17 +1,4 @@
-//
-//  Design.swift
-//  BetterMetro
-//
-//  Created by Ethan Hopkins on 17/11/2025.
-//
 
-
-//
-//  design.swift
-//  Learning 1
-//
-//  Created by Ethan Hopkins on 16/10/2025.
-//
 
 import SwiftUI
 

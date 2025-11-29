@@ -1,9 +1,3 @@
-//
-//  GreencardAPIModels.swift
-//  BetterMetro
-//
-//  Created by Assistant on 17/11/2025.
-//
 
 import Foundation
 

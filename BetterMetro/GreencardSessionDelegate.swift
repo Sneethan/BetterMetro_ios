@@ -1,10 +1,3 @@
-//
-//  GreencardSessionDelegate.swift
-//  BetterMetro
-//
-//  Created by Ethan Hopkins on 18/11/2025.
-//
-
 
 import Foundation
 

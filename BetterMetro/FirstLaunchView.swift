@@ -1,9 +1,3 @@
-//
-//  FirstLaunchView.swift
-//  BetterMetro
-//
-//  Created by Assistant on 17/11/2025.
-//
 
 import SwiftUI
 import SwiftData
@@ -26,17 +20,31 @@ struct FirstLaunchView: View {
             VStack(spacing: Design.Spacing.l) {
                 Spacer()
                 
-                Group {
-                    switch step {
-                    case .welcome:
+                ZStack {
+                    if step == .welcome {
                         welcomePage
-                    case .security:
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .trailing).combined(with: .opacity),
+                                removal: .move(edge: .leading).combined(with: .opacity)
+                            ))
+                    }
+                    
+                    if step == .security {
                         securityPage
-                    case .login:
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .trailing).combined(with: .opacity),
+                                removal: .identity // no exit animation when heading to sign-in
+                            ))
+                    }
+                    
+                    if step == .login {
                         loginForm
+                            .transition(.opacity) // whisper-subtle fade in
                     }
                 }
                 .padding(.horizontal, Design.Spacing.l)
+                .animation(step == .login ? .easeInOut(duration: 0.14) : .easeInOut(duration: 0.32),
+                           value: step)
                 
                 Spacer()
                 
@@ -79,6 +87,27 @@ struct FirstLaunchView: View {
                 .padding(.bottom, Design.Spacing.l)
             }
             .navigationBarHidden(true)
+            // Radial glow that feels like light spilling down from above.
+            .background(alignment: .top) {
+                if step != .login {
+                    RadialGradient(
+                        colors: [
+                            Design.primary.opacity(0.7),
+                            Design.primary.opacity(0.18),
+                            .clear
+                        ],
+                        center: UnitPoint(x: 0.5, y: -0.4), // originate above the visible bounds
+                        startRadius: 24,
+                        endRadius: 520
+                    )
+                    .frame(height: 420)
+                    .offset(y: -140) // pull it further offscreen so it pours downward
+                    .blur(radius: 28)
+                    .opacity(0.9)
+                    .allowsHitTesting(false)
+                    .padding(.horizontal, -Design.Spacing.xl)
+                }
+            }
         }
         .alert("Authentication Error", isPresented: $showError) {
             Button("OK") { }
@@ -97,6 +126,7 @@ struct FirstLaunchView: View {
                 .font(.title2)
                 .fontWeight(.bold)
                 .multilineTextAlignment(.center)
+                .padding(.bottom, Design.Spacing.xl)
             
             VStack(alignment: .leading, spacing: Design.Spacing.m) {
                 benefitRow(icon: "bolt.fill", title: "Lightning Fast", detail: "A fluid, snappy design ensures everything is exactly where you need it.")
@@ -116,6 +146,7 @@ struct FirstLaunchView: View {
                 .font(.title2)
                 .fontWeight(.bold)
                 .multilineTextAlignment(.center)
+                .padding(.bottom, Design.Spacing.xl)
             
             VStack(alignment: .leading, spacing: Design.Spacing.m) {
                 benefitRow(icon: "lock.fill", title: "Stored Securely", detail: "Credentials are encrypted and kept on your device only.")
@@ -190,9 +221,9 @@ struct FirstLaunchView: View {
                 .foregroundColor(Design.primary)
             }
             .padding()
+            .frame(maxWidth: .infinity, alignment: .leading) // stretch to match text fields/buttons
             .background(Color(uiColor: .secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 16))
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
     

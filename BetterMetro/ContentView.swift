@@ -240,6 +240,7 @@ struct AccountInfoView: View {
                         VStack(alignment: .leading, spacing: Design.Spacing.m) {
                             Text("Preferences")
                                 .font(.headline)
+                                .padding(.bottom, Design.Spacing.s)
                             
                             HStack {
                                 Label("Auto Reload", systemImage: "arrow.triangle.2.circlepath.circle")
@@ -282,6 +283,7 @@ struct AccountInfoView: View {
                         VStack(alignment: .leading, spacing: Design.Spacing.m) {
                             Text("Account")
                                 .font(.headline)
+                                .padding(.bottom, Design.Spacing.s)
                             
                             VStack(alignment: .leading, spacing: Design.Spacing.s) {
                                 Text("Email")
@@ -344,6 +346,7 @@ struct AccountInfoView: View {
                             }
                         }
                     }
+                    .padding(.top, Design.Spacing.m)
 
                     Button(role: .destructive, action: logout) {
                         HStack {
@@ -358,7 +361,8 @@ struct AccountInfoView: View {
                         .foregroundColor(.red)
                         .clipShape(RoundedRectangle(cornerRadius: Design.radius))
                     }
-                    .padding(.bottom, Design.Spacing.l)
+                    .padding(.top, Design.Spacing.m)
+                    .padding(.bottom, Design.Spacing.m)
                 }
                 .padding(.horizontal)
             }
@@ -492,7 +496,7 @@ struct HistoryRowView: View {
     
     var body: some View {
         HStack {
-            Image(systemName: item.type == "trip" ? "bus" : "plus.circle.fill")
+            Image(systemName: item.type == "trip" ? "bus.fill" : "plus.circle.fill")
                 .foregroundColor(item.type == "trip" ? Color(red: 106/255, green: 182/255, blue: 248/255) : Design.primary)
                 .font(.title2)
             
@@ -508,7 +512,7 @@ struct HistoryRowView: View {
             
             Text(item.balanceChangeInDollars)
                 .font(.headline)
-                .foregroundColor(item.isPositive ? Design.primary : .red)
+                .foregroundColor(item.isPositive ? Design.primary : Color(red: 0.848, green: 0.276, blue: 0.33, opacity: 1))
         }
         .padding(.vertical, 4)
     }

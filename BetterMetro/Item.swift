@@ -1,9 +1,4 @@
-//
-//  Item.swift
-//  BetterMetro
-//
-//  Created by Ethan Hopkins on 17/11/2025.
-//
+
 
 import Foundation
 import SwiftData
